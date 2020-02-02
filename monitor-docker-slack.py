@@ -17,7 +17,7 @@ import re
 import time
 
 import requests_unixsocket
-from slackclient import SlackClient
+import slack
 
 
 def name_in_list(name, name_pattern_list):
@@ -31,6 +31,7 @@ def name_in_list(name, name_pattern_list):
 
 def list_containers_by_sock(docker_sock_file):
     session = requests_unixsocket.Session()
+
     container_list = []
     socket = docker_sock_file.replace("/", "%2F")
     url = "http+unix://%s/%s" % (socket, "containers/json?all=1")
@@ -120,10 +121,7 @@ if __name__ == '__main__':
     if slack_token == '':
         print("Warning: Please provide slack token.")
 
-    slack_client = SlackClient(slack_token)
-
-    # TODO
-    slack_username = "@denny"
+    slack_client = slack.WebClient(token=slack_token, ssl=False)
 
     has_send_error_alert = False
     while True:
@@ -133,13 +131,19 @@ if __name__ == '__main__':
         print("%s: %s" % (status, err_msg))
         if status == "OK":
             if has_send_error_alert is True:
-                slack_client.api_call("chat.postMessage", user=slack_username, as_user=False, channel=slack_channel,
-                                      text=err_msg)
+                response = slack_client.chat_postMessage(
+                    channel=slack_channel,
+                    text=err_msg)
+                assert response["ok"]
+                assert response["message"]["text"] == err_msg
                 has_send_error_alert = False
         else:
             if has_send_error_alert is False:
-                slack_client.api_call("chat.postMessage", user=slack_username, as_user=False, channel=slack_channel,
-                                      text=err_msg)
+                response = slack_client.chat_postMessage(
+                    channel=slack_channel,
+                    text=err_msg)
+                assert response["ok"]
+                assert response["message"]["text"] == err_msg
                 # avoid send alerts over and over again
                 has_send_error_alert = True
         time.sleep(check_interval)
